@@ -1,0 +1,7 @@
+*~
+*#
+day*/*
+!day*/*.hs
+!day*/*.txt
+.stack-work
+.env

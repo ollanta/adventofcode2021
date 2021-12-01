@@ -1,0 +1,12 @@
+name: adventofcode2021
+
+dependencies:
+- base >= 4.7 && < 5
+- unordered-containers
+- vector
+- heap
+- linear
+
+library:
+  source-dirs:
+  - lib
