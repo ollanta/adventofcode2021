@@ -8,21 +8,23 @@ main = do
   putStrLn ""
 
 
-solve inps = show . sum $ answer
+solve inps = show $ answer
   where
-    answer = map (score . fromJust) . filter (/=Nothing) . map syntaxerror $ inps
+    errors = filter (/=Nothing) . map parse $ inps
+    answer = sum . map (score . fromJust) $ errors
 
-    syntaxerror (c:cs) = se [] c cs
+    parse brackets = helper [] brackets
       where
-        se prev last (next:rest)
-          | next `elem` opening = se (last:prev) next rest
-          | next == close last  = se (drop 1 prev) (head prev) rest
-          | otherwise           = Just next
-        se _ _ [] = Nothing
+        helper _ [] = Nothing
+        helper [] (next:rest)
+          | opener next = helper [next] rest
+          | otherwise   = Just next
+        helper (last:prev) (next:rest)
+          | opener next        = helper (next:last:prev) rest
+          | next == close last = helper prev rest
+          | otherwise          = Just next
 
-
-opening = "<({["
-closing = ">)}]"
+opener c = c `elem` "<({["
 
 close '<' = '>'
 close '(' = ')'

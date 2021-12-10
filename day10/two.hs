@@ -10,22 +10,22 @@ main = do
 
 solve inps = show $ answer
   where
-    scores = map (score . fromJust) . filter (/=Nothing) . map syntaxerror $ inps
-
+    incomplete = filter (/=Nothing) . map parse $ inps
+    scores = map (score . fromJust) $ incomplete
     answer = (!! (length scores `div` 2)) . sort $ scores
 
-    syntaxerror (c:cs) = se [] c cs
+    parse brackets = helper [] brackets
       where
-        se prev last (next:rest)
-          | next `elem` opening = se (last:prev) next rest
-          | next == close last  = case null prev of
-              True -> se [] (head rest) (tail rest)
-              False -> se (drop 1 prev) (head prev) rest
-          | otherwise           = Nothing
-        se prev last [] = Just (last:prev)
+        helper p [] = Just p
+        helper [] (next:rest)
+          | opener next = helper [next] rest
+          | otherwise   = Nothing
+        helper (last:prev) (next:rest)
+          | opener next        = helper (next:last:prev) rest
+          | next == close last = helper prev rest
+          | otherwise          = Nothing
 
-opening = "<({["
-closing = ">)}]"
+opener c = c `elem` "<({["
 
 close '<' = '>'
 close '(' = ')'
