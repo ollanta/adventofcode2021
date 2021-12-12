@@ -1,25 +1,16 @@
-{-# LANGUAGE DeriveGeneric #-}
-
-import GHC.Generics (Generic)
-import Data.Hashable
 import Text.Parsec
 import Data.List
 import qualified Data.HashMap.Strict as M
-
+import Chart2d
+import Parsing
 
 main :: IO ()
-main = do
-  interact (solve . readD)
-  putStrLn ""
+main = optimisticInteract parser solve
 
 
-readD :: String -> [[Integer]]
---readD :: String -> Either ParseError [[Integer]]
-readD s = inp
+parser :: Parser [[Integer]]
+parser = readRow `endBy` newline
   where
-    rinp = parse (readRow `endBy` newline) "" s
-    Right inp = rinp
-
     readRow = many1 readNum
 
     readNum = do
@@ -27,22 +18,12 @@ readD s = inp
       return $ read n
 
 
-data Coord = C Integer Integer
-  deriving (Eq, Show, Generic)
-
-instance Hashable Coord
-
-neighbours (C x y) = [C x' y' | x' <- [x-1..x+1], y' <- [y-1..y+1], x'/=x || y'/=y]
-
-solve inp = unlines [printM $ fst (states !! 0),
-                     printM $ fst (states !! 1),
-                     printM $ fst (states !! 2),
+solve inp = unlines [showMS $ fst (states !! 0),
+                     showMS $ fst (states !! 1),
+                     showMS $ fst (states !! 2),
                      show . head $ dropWhile (\(sn, (ch, fl)) -> not . M.null $ M.difference ch fl) $ zip [0..] states]
   where
-    chartelems = [(C x y, z) |
-                (y, row) <- zip [0..] inp,
-                (x, z)   <- zip [0..] row]
-    chart = M.fromList chartelems
+    chart = readM inp
 
     initstate = (chart, M.empty)
 
@@ -64,15 +45,5 @@ solve inp = unlines [printM $ fst (states !! 0),
         toflash' = M.difference toflash flashed
         flashed' = M.map (const 0) toflash' `M.union` flashed
 
-        tobump = concat . map neighbours . M.keys $ toflash'
+        tobump = concat . map neighbours8 . M.keys $ toflash'
         ch' = foldr (\k m -> M.adjust (+1) k m) ch tobump
-
-
-printM :: M.HashMap Coord Integer -> String
-printM ch = unlines [concat [show (ch M.! C x y) | x <- [0..maxx]] | y <- [0..maxy]]
-  where
-    maxx = maximum . map cx . M.keys $ ch
-    maxy = maximum . map cy . M.keys $ ch
-
-    cx (C x _) = x
-    cy (C _ y) = y

@@ -6,6 +6,7 @@ dependencies:
 - vector
 - heap
 - linear
+- parsec
 
 library:
   source-dirs:
