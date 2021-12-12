@@ -1,6 +1,5 @@
 import Text.Parsec
 import Data.List
-import Data.Function
 import qualified Data.HashMap.Strict as M
 import Parsing
 import Data.Char
@@ -22,21 +21,16 @@ parser = readRow `endBy` newline
 
 
 solve inp = unlines [show edges,
-                     show . groupBy ((==) `on` fst) $ edges,
-                     show paths,
-                     show genPaths,
+                     show edgemap,
                      show . length $ genPaths]
   where
     edges = inp ++ map (\(a,b) -> (b,a)) inp
-    paths = M.fromList . map (\l -> (fst $ head l, map snd l)) . groupBy ((==) `on` fst) . sort $ edges
+    edgemap = M.fromListWith (++) . map (\(k,v) -> (k,[v])) $ edges
 
     genPaths = gp [] "start"
       where
-        goal = "end"
-
         gp :: [String] -> String -> [[String]]
-        gp l st
-          | st `elem` l && all isLower st = []
-          | st == "end" = ["end":l]
-          | otherwise   = concatMap (gp (st:l)) (paths M.! st)
-
+        gp path st
+          | st `elem` path && all isLower st = []
+          | st == "end" = ["end":path]
+          | otherwise   = concatMap (gp (st:path)) (edgemap M.! st)

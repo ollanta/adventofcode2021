@@ -1,6 +1,5 @@
 import Text.Parsec
 import Data.List
-import Data.Function
 import qualified Data.HashMap.Strict as M
 import Parsing
 import Data.Char
@@ -21,24 +20,25 @@ parser = readRow `endBy` newline
     readStr = many1 alphaNum
 
 
-solve inp = unlines [show edges,
-                     show . groupBy ((==) `on` fst) $ edges,
-                     show paths,
-                     show genPaths,
+solve inp = unlines [show edgemap,
                      show . length $ genPaths]
   where
     edges = inp ++ map (\(a,b) -> (b,a)) inp
-    paths = M.fromList . map (\l -> (fst $ head l, map snd l)) . groupBy ((==) `on` fst) . sort $ edges
+    edgemap = M.fromListWith (++) . map (\(k,v) -> (k,[v])) $ edges
 
     genPaths = gp True [] "start"
       where
-        goal = "end"
-
         gp :: Bool -> [String] -> String -> [[String]]
-        gp haveTime l st
-          | st == "start" && st `elem` l = []
-          | st == "end" = ["end":l]
-          | all isLower st && st `elem` l && not haveTime = []
-          | all isLower st && st `elem` l = concatMap (gp False (st:l)) (paths M.! st)
-          | otherwise   = concatMap (gp haveTime (st:l)) (paths M.! st)
-
+        gp haveTime path st
+          | st == "end"   = ["end":path]
+          | st == "start" && isRevisit               = []
+          | isRevisit && isSmallCave && not haveTime = []
+          | isRevisit && isSmallCave && haveTime     = contPaths False
+          | otherwise = contPaths haveTime
+          where
+            isRevisit = st `elem` path
+            isSmallCave = all isLower st
+  
+            path' = st:path
+            neighbours = edgemap M.! st
+            contPaths ht = concatMap (gp ht path') neighbours
