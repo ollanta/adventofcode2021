@@ -48,13 +48,11 @@ solve (template, insertpairs) = unlines [show template,
             k1 = take 1 k ++ i
             k2 = i ++ drop 1 k
 
-    -- every char is counted double, with an exception for the first and last one
     singleOccurences :: M.HashMap String Integer -> M.HashMap Char Integer
-    singleOccurences occ = M.unionWith (+) dadjust . M.map (`div` 2) $ M.unionWith (-) chocc dadjust
+    singleOccurences occ = M.fromListWith (+) $ (last template, 1):firstOccurences
       where
-        chocc = M.fromListWith (+) . concatMap split $ M.toList occ
-        split ((a:b:[]), v) = [(a,v), (b,v)]
-        dadjust = M.fromListWith (+) [(head template, 1), (last template, 1)]
+        firstOccurences = map split $ M.toList occ
+        split (p, v) = (head p, v)
 
     getAnswer occ = maximum chocc - minimum chocc
       where
