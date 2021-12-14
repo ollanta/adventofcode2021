@@ -2,8 +2,6 @@ import Text.Parsec
 import Data.List
 import qualified Data.HashMap.Strict as M
 import Parsing
-import Chart2d
-import Data.Char
 
 main :: IO ()
 main = optimisticInteract parser solve
@@ -23,12 +21,10 @@ parser = do
       return $ (p1, p2)
 
 
-solve (template, pairs) = unlines [show template,
-                                   show pairs,
+solve (template, pairs) = unlines [states !! 0,
                                    states !! 1,
                                    states !! 2,
                                    states !! 3,
-                                   states !! 4,
                                    show . getAnswer $ states !! 10]
   where
     states = iterate nextstate template
@@ -39,7 +35,7 @@ solve (template, pairs) = unlines [show template,
         lst = sort . map length . group . sort $ st
 
     nextstate :: String -> String
-    nextstate (a:b:rest) = insert a b ++ nextstate (b:rest)
+    nextstate (a:b:rest) = [a] ++ insert a b ++ nextstate (b:rest)
     nextstate l = l
 
-    insert a b = [a] ++ M.lookupDefault "" (a:b:[]) inserts
+    insert a b = M.lookupDefault "" (a:b:[]) inserts

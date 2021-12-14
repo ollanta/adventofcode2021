@@ -2,8 +2,6 @@ import Text.Parsec
 import Data.List
 import qualified Data.HashMap.Strict as M
 import Parsing
-import Chart2d
-import Data.Char
 
 main :: IO ()
 main = optimisticInteract parser solve
@@ -23,42 +21,41 @@ parser = do
       return $ (p1, p2)
 
 
-solve (template, pairs) = unlines [show template,
-                                   show occurences,
+solve (template, insertpairs) = unlines [show template,
+                                   show $ states !! 0,
                                    show $ states !! 1,
                                    show $ states !! 2,
-                                   show $ states !! 10,
+                                   show . singleOccurences $ states !! 10,
+                                   show . singleOccurences $ states !! 40,
                                    show . getAnswer $ states !! 10,
                                    show . getAnswer $ states !! 40]
   where
-    keys = zipWith (\a b -> a:b:[]) template (tail template)
-    occurences = foldr (\k m -> M.insertWith (+) k 1 m) M.empty keys
+    inserts = M.fromList insertpairs
+
+    pairs = zipWith (\a b -> a:b:[]) template (tail template)
+    occurences = M.fromListWith (+) $ zip pairs (repeat 1)
 
     states = iterate nextstate occurences
-    inserts = M.fromList pairs
 
-    getAnswer :: M.HashMap String Integer -> Integer
-    getAnswer st = (last lst - head lst)
-      where
-        st' = foldr (\(k,v) m -> M.insertWith (+) k v m) M.empty $ concatMap split (M.toList st)
-        split ((a:b:[]), v) = [(a,v),(b,v)]
-        st'' = M.mapWithKey dadjust st'
-
-        dadjust k v
-          | k `elem` [head template, last template] = ((v-1) `div` 2) + 1
-          | otherwise = v `div` 2
-        lst = sort . M.elems $ st''
-
-    
     nextstate :: M.HashMap String Integer -> M.HashMap String Integer
-    nextstate m = foldr (\(k,v) m -> M.insertWith (+) k v m) M.empty $ concatMap insert (M.toList m)
+    nextstate m = M.fromListWith (+) . concatMap insert $ M.toList m
       where
         insert (k,v)
-          | not $ k `M.member` inserts = [(k,v)]
-          | otherwise                  = [(k1,v), (k2,v)]
+          | k `M.member` inserts = [(k1,v), (k2,v)]
+          | otherwise            = [(k,v)]
           where
             i = inserts M.! k
-            k1 = k !! 0 : i
-            k2 = i ++ [k !! 1]
+            k1 = take 1 k ++ i
+            k2 = i ++ drop 1 k
 
+    -- every char is counted double, with an exception for the first and last one
+    singleOccurences :: M.HashMap String Integer -> M.HashMap Char Integer
+    singleOccurences occ = M.unionWith (+) dadjust . M.map (`div` 2) $ M.unionWith (-) chocc dadjust
+      where
+        chocc = M.fromListWith (+) . concatMap split $ M.toList occ
+        split ((a:b:[]), v) = [(a,v), (b,v)]
+        dadjust = M.fromListWith (+) [(head template, 1), (last template, 1)]
 
+    getAnswer occ = maximum chocc - minimum chocc
+      where
+        chocc = singleOccurences occ
