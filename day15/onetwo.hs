@@ -34,19 +34,19 @@ solve inp = unlines [showMS $ chart,
       | otherwise = r
 
 
-    search chart = search' [((0,0), 0)] M.empty
+    search chart = search' ((0,0),0) M.empty M.empty
       where
         goal = maximum $ M.keys chart
 
-        search' ((co, rsk):rest) visited
+        search' (co, rsk) shortmap visited
           | co == goal = rsk
-          | otherwise  = search' rest' visited'
+          | otherwise  = search' next shortmap'' visited'
           where
             visited' = M.insert co True visited
 
-            neigh = filter (`M.member` chart) $ neighbours co
-            mm = M.fromListWith min $ rest ++ map (\c -> (c, rsk + chart M.! c)) neigh
-            mm' = M.filterWithKey (\k v -> not $ M.member k visited) mm
-            rest' = map flip . sort . map flip $ M.toList mm'
+            neigh = filter (\c -> M.member c chart && not (M.member c visited)) $ neighbours co
+            shortmap' = M.unionWith min shortmap $ M.fromList (map (\c -> (c, rsk + chart M.! c)) neigh)
+            shortmap'' = M.delete co shortmap'
+            next = flip . minimum . map flip $ M.toList shortmap''
 
             flip (a,b) = (b,a)
