@@ -3,6 +3,7 @@ import Data.List
 import qualified Data.HashMap.Strict as M
 import Chart2d
 import Parsing
+import qualified Data.Heap as H
 
 main :: IO ()
 main = optimisticInteract readD solve
@@ -34,19 +35,22 @@ solve inp = unlines [showMS $ chart,
       | otherwise = r
 
 
-    search chart = search' ((0,0),0) M.empty M.empty
+    search chart = search' initheap M.empty
       where
         goal = maximum $ M.keys chart
 
-        search' (co, rsk) shortmap visited
+        initheap :: H.MinPrioHeap Integer Coord
+        initheap = H.singleton (0, (0,0))
+
+        search' prioh visited
+          | co `M.member` visited = search' prioh' visited
           | co == goal = rsk
-          | otherwise  = search' next shortmap'' visited'
+          | otherwise  = search' prioh'' visited'
           where
+            ([(rsk, co)], prioh') = H.splitAt 1 prioh
             visited' = M.insert co True visited
 
-            neigh = filter (\c -> M.member c chart && not (M.member c visited)) $ neighbours co
-            shortmap' = M.unionWith min shortmap $ M.fromList (map (\c -> (c, rsk + chart M.! c)) neigh)
-            shortmap'' = M.delete co shortmap'
-            next = flip . minimum . map flip $ M.toList shortmap''
+            neighs = [c | c <- neighbours co, M.member c chart, not (M.member c visited)]
+            neighheap = H.fromList [(rsk + chart M.! c, c) | c <- neighs]
 
-            flip (a,b) = (b,a)
+            prioh'' = H.union prioh' neighheap
