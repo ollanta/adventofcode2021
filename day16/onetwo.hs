@@ -23,8 +23,9 @@ solve inp = unlines [show $ bin,
     sumversion (POp v _ ips:ps) = v + sumversion ips + sumversion ps
     sumversion [] = 0
 
-readPackets "" = []
-readPackets str = (packet, rest) : readPackets rest
+readPackets str
+  | length str <= 6 = []
+  | otherwise       = (packet, rest) : readPackets rest
   where
     (packet, rest) = readPacket str
 
@@ -36,15 +37,15 @@ data Packet = PNum Integer Integer Integer | POp Integer Integer [Packet]
 
 readPacket :: String -> (Packet, String)
 readPacket bin
-  | typeid' == 4 = (PNum version' typeid' number, numbercont)
-  | lengthtypeid == "0" = (POp version' typeid' pmop0, pmop0cont)
-  | lengthtypeid == "1" = (POp version' typeid' pmop1, pmop1cont)
+  | typeid' == 4 = (PNum version typeid number, numbercont)
+  | lengthtypeid == "0" = (POp version typeid pmop0, pmop0cont)
+  | lengthtypeid == "1" = (POp version typeid pmop1, pmop1cont)
   where
-    (version, bin') = splitAt 3 bin
-    (typeid, bin'') = splitAt 3 bin'
+    (versionbin, bin') = splitAt 3 bin
+    (typeidbin, bin'') = splitAt 3 bin'
 
-    version' = fromBin version
-    typeid' = fromBin typeid
+    version = fromBin versionbin
+    typeid = fromBin typeidbin
 
     (number, numbercont) = readnumber "" bin''
 
@@ -110,4 +111,3 @@ from1Hex 'C' = "1100"
 from1Hex 'D' = "1101"
 from1Hex 'E' = "1110"
 from1Hex 'F' = "1111"
-
