@@ -26,16 +26,13 @@ parser = readPairs `sepEndBy` newline
       n <- many1 digit
       return $ PN (read n)
 
-
 solve ps = unlines $
   [show total,
    show (magnitude total),
    show $ largest
   ]
   where
-    inp = ps
     total = foldl1 add (map reduce ps)
-
     largest = maximum [magnitude (add p1 p2) | p1 <- ps, p2 <- ps, p1 /= p2]
 
 add p1 p2 = reduce $ P p1 p2
@@ -46,16 +43,17 @@ explode p = (b, p')
 
     explode' n (P (PN a) (PN b))
       | n == 4 = (True, PN 0, Just a, Just b)
-    explode' n (P p1 p2)
-      | exp1 = (True, P p1' p2p, addl1, Nothing)
-      | exp2 = (True, P p1p p2', Nothing, addr2)
-      | otherwise = (False, P p1 p2, Nothing, Nothing)
+    explode' n (P l r)
+      | n == 4 = error "This is not allowed"
+      | lexp = (True, P l' lr, laddl, Nothing)
+      | rexp = (True, P rl r', Nothing, raddr)
+      | otherwise = (False, P l r, Nothing, Nothing)
       where
-        (exp1, p1', addl1, addr1) = explode' (n+1) p1
-        (exp2, p2', addl2, addr2) = explode' (n+1) p2
+        (lexp, l', laddl, laddr) = explode' (n+1) l
+        (rexp, r', raddl, raddr) = explode' (n+1) r
 
-        p2p = addleftmost addr1 p2
-        p1p = addrightmost addl2 p1
+        lr = addleftmost laddr r
+        rl = addrightmost raddl l
     explode' n pn = (False, pn, Nothing, Nothing)
 
     addleftmost Nothing p = p
@@ -66,22 +64,19 @@ explode p = (b, p')
     addrightmost (Just a) (PN n) = PN (n+a)
     addrightmost a (P l r) = P l (addrightmost a r)
     
-splitp p = (b, p')
+splitp (PN n)
+  | n >= 10   = (True, P (PN nl) (PN nr))
+  | otherwise = (False, PN n)
   where
-    (b, p') = splitp' p
-
-    splitp' (PN n)
-      | n >= 10 = (True, P (PN n2) (PN $ n-n2))
-      | otherwise = (False, PN n)
-      where
-        n2 = n `div` 2
-    splitp' (P p1 p2)
-      | split1 = (True, P p1' p2)
-      | split2 = (True, P p1 p2')
-      | otherwise = (False, P p1 p2)
-      where
-        (split1, p1') = splitp' p1
-        (split2, p2') = splitp' p2
+    nl = n `div` 2
+    nr = n - nl
+splitp (P l r)
+  | splitl    = (True, P l' r)
+  | splitr    = (True, P l r')
+  | otherwise = (False, P l r)
+  where
+    (splitl, l') = splitp l
+    (splitr, r') = splitp r
 
 reduce p
   | shouldexplode = reduce exploded
