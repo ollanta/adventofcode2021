@@ -13,6 +13,12 @@ optimisticInteract parser solver = do
       Left err -> show err
       Right p  -> solver p
 
+mnumber :: Parser Integer
+mnumber = do
+  m <- option "" $ string "-"
+  n <- many1 digit
+  return $ read (m ++ n)
+
 number :: Parser Integer
 number = do
   n <- many1 digit

@@ -22,11 +22,6 @@ parser = do
       end <- mnumber
       return (start, end)
 
-    mnumber = do
-      m <- option "" $ string "-"
-      n <- many1 digit
-      return $ read (m ++ n)
-
 
 solve ((xstart,xend),(ystart,yend)) = unlines [
   show $ yvels,
