@@ -23,6 +23,9 @@ readM rows = M.fromList chartelems
     chartelems = [((x, y), v) | (y, row) <- zip [0..] rows,
                                 (x, v)   <- zip [0..] row]
 
+showMC :: M.HashMap Coord Char -> String
+showMC chart = showM chart (:[])
+
 showMS :: Show a => M.HashMap Coord a -> String
 showMS chart = showM chart show
 
