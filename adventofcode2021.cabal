@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3c5a7bbb224e0ad7d126b19e6bd1bf9aa822142c4f83a4bf38abc8d38976ca3f
+-- hash: 886c67a92c7db18485d45883abe9be1140512aee56b56fc2faa040f6b63a2643
 
 name:           adventofcode2021
 version:        0.0.0
@@ -14,6 +14,7 @@ library
   exposed-modules:
       Chart2d
       Chart3d
+      Generic
       Parsing
   other-modules:
       Paths_adventofcode2021
@@ -22,6 +23,7 @@ library
   build-depends:
       base >=4.7 && <5
     , heap
+    , hip
     , linear
     , parsec
     , unordered-containers

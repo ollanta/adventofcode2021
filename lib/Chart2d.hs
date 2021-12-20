@@ -42,3 +42,9 @@ showM chart shower = unlines rows
     maybeshower Nothing  = " "
 
     rows = [concat [maybeshower (M.lookup (x, y) chart) | x <- [minx..maxx]] | y <- [miny..maxy]]
+
+liftf2 f (x1, y1) (x2, y2) = (f x1 x2, f y1 y2)
+
+add c1 c2 = liftf2 (+) c1 c2
+
+sub c1 c2 = liftf2 (-) c1 c2
