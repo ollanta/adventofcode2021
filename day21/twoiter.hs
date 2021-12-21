@@ -3,6 +3,7 @@ import Data.List
 import qualified Data.HashMap.Strict as M
 import Parsing
 import Chart2d
+import Control.Applicative
 
 main :: IO ()
 main = optimisticInteract parser solve
@@ -15,34 +16,38 @@ readPosition = do
   pos <- number
   return pos
 
-solve [p1,p2] = show . scores $ donestate
+solve [pos1,pos2] = show finalState
   where
-    states = iterate nextst (M.singleton (p1,0) 1, 0, M.singleton (p2,0) 1, 0)
+    player1, player2 :: (M.HashMap (Integer, Integer) Integer, Integer)
+    player1 = (M.singleton (pos1, 0) 1, 0)
+    player2 = (M.singleton (pos2, 0) 1, 0)
 
-    done (_, _, m2, _) = M.null m2
+    winCount player@(_, w) = w
+    ongoingGames player@(m, _) = m
 
-    donestate = head . filter done $ states
+    states = iterate play (player1, player2)
+    finalState = head . filter (M.null . ongoingGames . snd) $ states
 
-    scores (_, s1, _, s2) = (s1,s2)
-
-    nextst (m1, w1, mn, wn) = (mn, wn, m1c, w1')
+    play (p1, p2) = (p2, p1')
       where
-        m1' = M.fromListWith (+) [((p', s+p'), c*n) |
-                                  ((p, s), c) <- M.toList m1,
-                                  (n, roll) <- distinctRolls,
-                                  let p' = step p roll]
-        m1c = M.filterWithKey (\(_, s) _ -> s < 21) m1'
-        m1w = M.filterWithKey (\(_, s) _ -> s >= 21) m1'
-        games = sum . M.elems $ mn
-        w1'  = (w1+) . (games*) . sum . M.elems $ m1w
+        newStates = M.fromListWith (+) [((pos', score+pos'), count * rollCount) |
+                                        ((pos, score), count) <- M.toList . ongoingGames $ p1,
+                                        (roll, rollCount) <- distinctRolls,
+                                        let pos' = step pos roll]
+        winningGames = filterScore (>=21) newStates
+        otherGames = filterScore (<21) newStates
 
+        newWins = countGames winningGames * countGames (ongoingGames p2)
+        p1' = (otherGames, winCount p1 + newWins)
 
-distinctRolls = map (\l -> (toInteger (length l), head l)) . group . sort $ allRolls
+    countGames gameState = sum . M.elems $ gameState
+
+    filterScore f gameState = M.filterWithKey (\(_, score) _ -> f score) gameState
+
+distinctRolls = [(head l, toInteger (length l)) | l <- group . sort $ allRolls]
   where
-    allRolls = [roll1 + roll2 + roll3 |
-                roll1 <- [1..3],
-                roll2 <- [1..3],
-                roll3 <- [1..3]]
+    (<+>) = liftA2 (+)
+    allRolls = [1..3] <+> [1..3] <+> [1..3]
 
 step p n
   | p' == 0   = 10
