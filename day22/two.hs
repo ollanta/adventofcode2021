@@ -8,14 +8,14 @@ import Chart3d
 main :: IO ()
 main = optimisticInteract parser solve
 
-parser :: Parser [(String,Coord,Coord)]
+parser :: Parser [(String,(Coord,Coord))]
 parser = readCube `sepEndBy` newline
 
 readCube = do
   onoff <- many1 letter
   spaces
   [(xs,xe),(ys,ye),(zs,ze)] <- readRange `sepBy` string ","
-  return (onoff, (xs,ys,zs), (xe,ye,ze))
+  return (onoff, ((xs,ys,zs), (xe,ye,ze)))
 
 readRange = do
   oneOf "xyz" >> string "="
@@ -31,71 +31,37 @@ solve inp = unlines $ [
   where
     ans = inp
 
-    lights = foldl' turn [] inp
+    lights = foldl' combine [] inp
 
-    turn l (op, cs, ce) = combine l op (cs, ce)
+combine [] ("on", cube)  = [cube]
+combine [] ("off", cube) = []
+combine (cube:cubes) op@(_, newcube) = remove cube newcube  ++ combine cubes op
 
-combine [] "on" cube = [cube]
-combine [] "off" cube = []
-combine (cube:more) op newcube = minus cube newcube  ++ combine more op newcube
 
-corners cube@(cs, ce) = [(x,y,z) |
-                         let (xs, ys, zs) = cs,
-                         let (xe, ye, ze) = ce,
-                         x <- [xs, xe],
-                         y <- [ys, ye],
-                         z <- [zs, ze]]
-
-isin (x,y,z) ((xs,ys,zs), (xe,ye,ze)) = x >= xs && x <= xe && y >= ys && y <= ye && z >= zs && z <= ze
-
-overlaps cube1@(cs1, ce1) cube2@(cs2, ce2) = xs<=xe && ys<=ye && zs<=ze
+remove cube1 cube2
+  | cap cube1 cube2 == Nothing = [cube1]
+  | otherwise                  = remove' cube1 cube2c
   where
-    ((xs,ys,zs),(xe,ye,ze)) = cap cube1 cube2
-{-  any (`isin` cube2) (corners cube1) ||
-  any (`isin` cube1) (corners cube2) ||-}
-  
-  
-isfullyin cube1 cube2 = all (`isin` cube2) (corners cube1)
+    Just cube2c = cap cube1 cube2
 
-minus cube1@(cs1, ce1) cube2@(cs2, ce2)
-  | overlaps cube1 cube2c = filter (not . (`isfullyin` cube2)) splitcubes
-  | otherwise = [cube1]
-  where
-    cube2c = cap cube1 cube2
-    splitcubes = remove cube1 cube2c
+    remove' c cr = filter (/=cr) [((sx, sy, sz), (ex, ey, ez)) |
+                                   (sx, ex) <- splitInterval (\(x, _, _) -> x) c cr,
+                                   (sy, ey) <- splitInterval (\(_, y, _) -> y) c cr,
+                                   (sz, ez) <- splitInterval (\(_, _, z) -> z) c cr,
+                                   sx <= ex,
+                                   sy <= ey,
+                                   sz <= ez]
 
+    splitInterval g (cs, ce) (csr, cer) = [(g cs, g csr - 1), (g csr, g cer), (g cer + 1, g ce)]
 
-remove cube1@(cs, ce) cuber@(csr, cer) = filter correct newcubes
-  where
-    (xs, ys, zs) = cs
-    (xe, ye, ze) = ce
-    (xsr, ysr, zsr) = csr
-    (xer, yer, zer) = cer
-    
-    newcubes :: [(Coord, Coord)]
-    newcubes = [(cs, (xsr-1, ysr-1, zsr-1)),
-
-                ((xsr,ys,zs), (xe, ysr-1, zsr-1)),
-                ((xs,ysr,zs), (xsr-1, ye, zsr-1)),
-                ((xs,ys,zsr), (xsr-1, ysr-1, ze)),
-
-                ((xsr,ysr,zs), (xe, ye, zsr-1)),
-                ((xsr,ys,zsr), (xe, ysr-1, ze)),
-                ((xs,ysr,zsr), (xsr-1, ye, ze)),
-
-                --(csr, cer) <- removed,
-
-                ((xer+1,ysr,zsr), (xe, yer, zer)),
-                ((xsr,yer+1,zsr), (xer, ye, zer)),
-                ((xsr,ysr,zer+1), (xer, yer, ze)),
-
-                ((xer+1,yer+1,zsr), (xe, ye, zer)),
-                ((xer+1,ysr,zer+1), (xe, yer, ze)),
-                ((xsr,yer+1,zer+1), (xer, ye, ze)),
-
-                ((xer+1, yer+1, zer+1), ce)
-                ]
-    correct ((xs,ys,zs),(xe,ye,ze)) = xs <= xe && ys <= ye && zs <= ze
+    {- faster, but harder to read
+    newcubes = filter (\(s, e) -> s < e) [((xs, ys, zs), (xe, ye, zsr-1)),
+                                          ((xs, ys, zer+1), (xe, ye, ze)),
+                                          ((xs, ys, zsr), (xe, ysr-1, zer)),
+                                          ((xs, yer+1, zsr), (xe, ye, zer)),
+                                          ((xs, ysr, zsr), (xsr-1, yer, zer)),
+                                          ((xer+1, ysr, zsr), (xe, yer, zer))]
+        -}
 
 
 size cube@(cs,ce) = (lx+1) * (ly+1) * (lz+1)
@@ -103,7 +69,11 @@ size cube@(cs,ce) = (lx+1) * (ly+1) * (lz+1)
     (lx, ly, lz) = sub ce cs
 
 
-cap :: (Coord, Coord) -> (Coord, Coord) -> (Coord, Coord)
-cap ((xs,ys,zs), (xe,ye,ze)) ((xs1,ys1,zs1), (xe1,ye1,ze1)) =
-  ((max xs1 xs, max ys1 ys, max zs1 zs),
-   (min xe1 xe, min ye1 ye, min ze1 ze))
+cap :: (Coord, Coord) -> (Coord, Coord) -> Maybe (Coord, Coord)
+cap (xs1, xe1) (xs2, xe2)
+  | any (<0) [lx, ly, lz] = Nothing
+  | otherwise             = Just (xs', xe')
+  where
+    (xs', xe') = (cmap max xs1 `capp` xs2,
+                  cmap min xe1 `capp` xe2)
+    (lx, ly, lz) = sub xe' xs'
