@@ -2,7 +2,7 @@
 *#
 day*/*
 !day*/*.hs
-!day*/*.txt
+!day*/test*.txt
 .stack-work
 .env
-stats.json
+stats*.json
