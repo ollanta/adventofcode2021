@@ -49,11 +49,14 @@ combine ((op, cube):cubes) (nop, newcube) = case cap cube newcube of
   Just icube -> [(op, cube), (inv op, icube)] ++ cont
   Nothing    -> [(op, cube)] ++ cont
   where
-    cont = combine2 cubes (nop, newcube)
+    cont = combine cubes (nop, newcube)
 
     inv "on" = "off"
     inv "off" = "on"
     
+size (cs, ce) = product [lx+1, ly+1, lz+1]
+  where
+    (lx, ly, lz) = sub ce cs
 
 calcSize n (("on", cube):cubes) = calcSize (n+size cube) cubes
 calcSize n (("off", cube):cubes) = calcSize (n-size cube) cubes
