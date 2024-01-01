@@ -2,6 +2,7 @@
 import Text.Parsec
 import Data.List
 import qualified Data.HashMap.Strict as M
+import qualified Data.HashSet as S
 import Chart2d
 import Parsing
 import qualified Data.Heap as H
@@ -47,52 +48,67 @@ readD = readRow `endBy` newline
 
 solve ops = unlines $ [
   show ops,
-  "bac"
+  --showE $ zinit,
+  showE . snd $ relations !! 2,
+  showE . snd $ relations !! 3,
+  unlines $ [v : " == " ++ showE e | (v, e) <- M.toList finalRelations],
+  show $ (maximum goodModelNumbers, minimum goodModelNumbers)
   ]
   where
+    relations = recurseRelations initVarmap
+    varNames = take 14 ['a'..'z']
+    initVarmap = M.fromList [(c, CVar c) | c <- varNames]
+
+    goodModelNumbers = genModelNumbers finalRelations
+    genModelNumbers rels = helper M.empty varNames
+      where
+        -- Assuming there's only one relation per variable, generate symmetric relations
+        toSimple (CVar a) = (a,0)
+        toSimple (COp "add" (CVar a) (CInt k)) = (a,k)
+        simpleRels = M.map toSimple rels
+        simpleRevRels = M.fromList [(a,(b,-k)) | (b,(a,k)) <- M.toList simpleRels]
+        combinedRels = M.unions [M.filter ((/=0).snd) simpleRels, M.filter ((/=0).snd) simpleRevRels, simpleRels]
+
+        helper :: M.HashMap Char Integer -> [Char] -> [String]
+        helper vars [] = [foldr1 (++) [show (vars M.! c) | c <- varNames]]
+        helper vars (a:vs) = [mn | i <- vrange, mn <- helper (M.insert a i vars) vs]
+          where
+            (b, k) = combinedRels M.! a
+            minA = max 1 (1+k)
+            maxA = min 9 (9+k)
+
+            vrange = case M.member b vars of
+              True -> [vars M.! b + k]
+              False -> [minA..maxA]
+
+
     {-
-    ustates = foldl' apply (M.singleton (0,0,0,0) []) ops
-    highest = maximum . M.elems . M.filterWithKey (\(w,x,y,z) _ -> z == 0) $ ustates
+    Optimistic solution hoping the resulting expression will have simple relations between
+    the inputs, like "c+3==d", and that they need to be true for the total calculation to
+    be zero.
     -}
+    finalRelations = fst (last relations)
+    recurseRelations varmap
+      | M.null newRelations = [(varmap, zexpression)]
+      | otherwise           = (varmap, zexpression) : recurseRelations varmap'
+      where
+        initRegs = M.fromList . zip "wxyz" $ repeat (CInt 0)
+        inputs = map (varmap M.!) varNames
+        zexpression = (M.! 'z') . fst $ foldl' expand (initRegs, inputs) ops
+
+        newRelations = findRelations zexpression
+
+        findRelations (COp "eql" e@(COp "add" (CVar a) (CInt k)) (CVar b)) = M.singleton b e
+        findRelations (COp _ o1 o2) = M.union (findRelations o1) (findRelations o2)
+        findRelations _             = M.empty
+
+        varmap' = M.union newRelations varmap
 
 
 data Calc = CInt Integer | CVar Char | COp String Calc Calc
   deriving (Show, Eq)
 
--- state -> maxinp
-{-
-apply inpmap (Inp (R c)) = M.fromList [(state', inp ++ [show i]) |
-                                       i <- [1..9],
-                                       (state, inp) <- M.toList inpmap,
-                                       let state' = sinsert state c i]
-apply inpmap (Op op (R c) v) = M.fromList [(state', inps) |
-                                           (state, inps) <- M.toList inpmap,
-                                           let v1 = sget state c,
-                                           let v2 = getV state v,
-                                           let state' = sinsert state c (apply' op v1 v2)]
-  where
-    getV state (R c) = sget state c
-    getV state (V i) = i
-
-    apply' "add" a b = a + b
-    apply' "mul" a b = a * b
-    apply' "div" a b = signum (a*b) * div (abs a) (abs b)
-    apply' "mod" a b = mod a b
-    apply' "eql" a b = if a == b then 1 else 0
-    
-
-sget (w,x,y,z) 'w' = w
-sget (w,x,y,z) 'x' = x
-sget (w,x,y,z) 'y' = y
-sget (w,x,y,z) 'z' = z
-  
-sinsert (w,x,y,z) 'w' i = (i,x,y,z)
-sinsert (w,x,y,z) 'x' i = (w,i,y,z)
-sinsert (w,x,y,z) 'y' i = (w,x,i,z)
-sinsert (w,x,y,z) 'z' i = (w,x,y,i)
--}
-
-expandc c ops = (M.! c) . fst $ foldl' expand (initm, varinp) ops
+expandc c ops  = (M.! c) . fst $ foldl' expand (initm, varinp) ops
   where
     initm = M.fromList . zip "wxyz" $ repeat (CInt 0)
     varinp = map CVar ['a'..'z']
@@ -155,28 +171,32 @@ exp' "mul" c (COp "add" a b) = exp' "add" (exp' "mul" a c) (exp' "mul" b c)
 
 exp' "div" (CInt 0) _ = CInt 0
 exp' "div" v (CInt 1) = v
+exp' "div" v (CInt x)
+  | x > cmax v && 0 <= cmin v = CInt 0
 exp' "div" (COp "mul" c (CInt a)) (CInt b)
   | mod a b == 0 = CInt 0
+exp' "div" (COp "div" c (CInt a)) (CInt b) = exp' "div" c (CInt (a*b))
 exp' "div" o@(COp "add" _ _) i@(CInt a)
-  | o' == o   = COp "div" o i
-  | otherwise = exp' "div" o' i
+  | od == CInt 0 = COp "div" o i
+  | otherwise    = exp' "add" (exp' "div" or i) od
   where
-    o' = divred o
+    (od, or) = divred o
 
-    divred (CInt b)
-      | mod b a == 0 = CInt 0
-    divred (CVar v)
-      | a > 9 = CVar v
-    divred (COp "add" e1 e2) = exp' "add" (divred e1) (divred e2)
+    divred (CInt b) = (CInt (b `div` a), CInt (b `mod` a))
+    divred (COp "add" e1 e2) = (exp' "add" e1d e2d, exp' "add" e1r e2r)
+      where
+        (e1d, e1r) = divred e1
+        (e2d, e2r) = divred e2
     divred (COp "mul" e1 (CInt b))
-      | div b a == 0 = CInt 0
-    divred e = e
+      | mod b a == 0 = (exp' "mul" e1 (CInt (b `div` a)), CInt 0)
+    divred e = (CInt 0, e)
 
 exp' "mod" (CInt 0) _ = CInt 0
 exp' "mod" e (CInt x)
   | x > cmax e = e
 exp' "mod" (COp "mul" c (CInt a)) (CInt b)
   | mod a b == 0 = CInt 0
+exp' "mod" (COp "div" c (CInt a)) (CInt b) = exp' "div" (exp' "mod" c (CInt (a*b))) (CInt a) -- <- NEW
 exp' "mod" o@(COp "add" _ _) i@(CInt a)
   | o' == o   = COp "mod" o i
   | otherwise = exp' "mod" o' i
@@ -194,6 +214,7 @@ exp' "mod" o@(COp "add" _ _) i@(CInt a)
 --exp' "mod" (COp "add" c1 c2) i = exp' "mod" (exp' "add" (exp' "mod" c1 i) (exp' "mod" c2 i)) i
 
 exp' "eql" c1 c2
+  | c1 == c2 = CInt 1
   | cmax c1 < cmin c2 = CInt 0
   | cmin c1 > cmax c2 = CInt 0
 
@@ -210,7 +231,7 @@ cmin c@(CInt i) = i
 cmin c@(COp op c1 c2)
   | op == "add" = cmin c1 + cmin c2
   | op == "mul" = minimum [v1*v2 | v1 <- [min1, max1], v2 <- [min2, max2]]
-  | op == "div" && min2 > 0 && min1 > 0 = div min1 max2
+  | op == "div" && min2 > 0 && min1 >= 0 = div min1 max2
   | op == "mod" = 0
   | op == "eql" = 0
   where
@@ -224,7 +245,7 @@ cmax c@(CInt i) = i
 cmax c@(COp op c1 c2)
   | op == "add" = cmax c1 + cmax c2
   | op == "mul" = maximum [v1*v2 | v1 <- [min1, max1], v2 <- [min2, max2]]
-  | op == "div" && min2 > 0 && min1 > 0 = div max1 min2
+  | op == "div" && min2 > 0 && min1 >= 0 = div max1 min2
   | op == "mod" = max2 - 1
   | op == "eql" = 1
   where
@@ -249,66 +270,3 @@ applyC op cinp = applyC' op
       where
         v1 = applyC' c1
         v2 = applyC' c2
-        
-
-
-applyMany inps ops = foldl' apply (M.fromList . zip "wxyz" $ repeat 0, inps) ops
-
-apply (m, (i:inps)) (Inp (R c)) = (M.insert c i m, inps)
-apply (m, inps) (Op op v1 v2)
-  | op == "add" = (upd (+) v1 v2, inps)
-  | op == "mul" = (upd (*) v1 v2, inps)
-  | op == "div" = (upd (\a b -> signum (a*b) * div (abs a) (abs b)) v1 v2, inps)
-  | op == "mod" = (upd (mod) v1 v2, inps)
-  | op == "eql" = (upd (\a b -> if a==b then 1 else 0) v1 v2, inps)
-  where
-    R c1 = v1
-
-    val (V i) = i
-    val (R c) = m M.! c
-
-    upd f (R c) v2 = M.adjust (\v -> f v (val v2)) c m
-
-
-{-          
-genModelNumbers = [
-  [i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, 14] |
-   i1 <- all,
-   i2 <- all,
-   i3 <- [6],--all,
-   i4 <- [9],--nub $ filter (<10) [9, i3+3],
-   i5 <- all,
-   i6 <- all,
-   i7 <- [9],--all,
-   i8 <- [1],--nub $ filter (>0) [9, i7-8],
-   i9 <- all, -- ???
-   i10 <- [7], --all,
-   i11 <- [9], --nub $ filter (<10) [9, i10+2],
-   i12 <- all,
-   i13 <- [2],
-   i14 <- [9]
-   ]
-  where
-    all = [9,8,7,6,5,4,3,2,1]
--}
-
-{-
-inp x
-mul x -1
-
-w x y z
-
-    inp a - Read an input value and write it to variable a.
-    add a b - Add the value of a to the value of b, then store the result in variable a.
-    mul a b - Multiply the value of a by the value of b, then store the result in variable a.
-    div a b - Divide the value of a by the value of b, truncate the result to an integer, then store the result in variable a. (Here, "truncate" means to round the value toward zero.)
-    mod a b - Divide the value of a by the value of b, then store the remainder in variable a. (This is also called the modulo operation.)
-    eql a b - If the value of a and b are equal, then store the value 1 in variable a. Otherwise, store the value 0 in variable a.
-
-c+3==d
-g-8==h
-j+2==k
-i?
-
-m+7=n
--}
